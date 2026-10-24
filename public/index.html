@@ -6,13 +6,20 @@
   <title>Навици</title>
   <style>
     :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
-    body { max-width: 28rem; margin: 2rem auto; padding: 0 1rem; }
+    body { max-width: 32rem; margin: 2rem auto; padding: 0 1rem; }
     form { display: flex; gap: 0.5rem; }
     form input { flex: 1; }
     input, button { font: inherit; padding: 0.4rem 0.6rem; }
     ul { list-style: none; padding: 0; }
-    li { border-bottom: 1px solid #8884; }
-    label { display: flex; gap: 0.6rem; align-items: center; padding: 0.6rem 0; cursor: pointer; }
+    li { display: flex; align-items: center; gap: 0.75rem; border-bottom: 1px solid #8884; }
+    label { flex: 1; min-width: 0; overflow-wrap: anywhere; display: flex; gap: 0.6rem; align-items: center; padding: 0.6rem 0; cursor: pointer; }
+    .stats { flex-shrink: 0; display: flex; align-items: center; gap: 0.75rem; }
+    .week { display: flex; gap: 3px; }
+    .day { width: 0.8rem; height: 0.8rem; border-radius: 3px; background: #8883; }
+    .day.done { background: #2e9d5b; }
+    .day:last-child { outline: 1px solid #888; outline-offset: 1px; }
+    .streak { min-width: 2.8rem; text-align: right; font-variant-numeric: tabular-nums; }
+    .streak.zero { opacity: 0.4; }
     #habits:empty::before { content: 'Още нямаш навици. Добави първия!'; color: GrayText; }
   </style>
   <script src="app.js" defer></script>
