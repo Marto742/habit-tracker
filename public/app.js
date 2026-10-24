@@ -1,25 +1,25 @@
 const form = document.querySelector('#new-habit')
 const list = document.querySelector('#habits')
-let shownDate
+const rows = new Map()
+let clicks = 0
 
-function renderHabit(habit) {
+function createRow(habit) {
   const checkbox = document.createElement('input')
   checkbox.type = 'checkbox'
-  checkbox.checked = habit.done
 
   const label = document.createElement('label')
   label.append(checkbox, habit.name)
 
   const stats = document.createElement('span')
   stats.className = 'stats'
-  renderStats(stats, habit)
 
   checkbox.addEventListener('change', async () => {
+    clicks++
     checkbox.disabled = true
     try {
       const res = await fetch(`/api/habits/${habit.id}/today`, { method: checkbox.checked ? 'PUT' : 'DELETE' })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      renderStats(stats, await res.json())
+      showHabit(await res.json())
     } catch {
       checkbox.checked = !checkbox.checked
     } finally {
@@ -29,7 +29,20 @@ function renderHabit(habit) {
 
   const item = document.createElement('li')
   item.append(label, stats)
-  return item
+  return { item, checkbox, stats }
+}
+
+// Shows a habit. A row that is already on the page is updated in place,
+// so a focused checkbox keeps its focus.
+function showHabit(habit) {
+  let row = rows.get(habit.id)
+  if (!row) {
+    row = createRow(habit)
+    rows.set(habit.id, row)
+    list.append(row.item)
+  }
+  row.checkbox.checked = habit.done
+  renderStats(row.stats, habit)
 }
 
 // The last 7 days as squares (oldest first, today last) and the streak.
@@ -52,14 +65,16 @@ function renderStats(stats, habit) {
   stats.replaceChildren(week, streak)
 }
 
-// The list shows one day's checks. Re-render only when the server's date has changed,
-// so a page left open past midnight doesn't keep showing yesterday's checks as today's.
+// Brings the page in line with the server: checks made on another device or in another tab,
+// and the new day after midnight.
 async function loadHabits() {
-  const res = await fetch('/api/habits')
-  const { date, habits } = await res.json()
-  if (date === shownDate) return
-  shownDate = date
-  list.replaceChildren(...habits.map(renderHabit))
+  const clicksBefore = clicks
+  const res = await fetch('/api/habits').catch(() => null)
+  if (!res?.ok) return
+  const { habits } = await res.json()
+  // If this page sent a check meanwhile, the answer may predate it. Skip it; the next load catches up.
+  if (clicks !== clicksBefore || list.querySelector('input:disabled')) return
+  for (const habit of habits) showHabit(habit)
 }
 
 form.addEventListener('submit', async (event) => {
@@ -73,13 +88,14 @@ form.addEventListener('submit', async (event) => {
     body: JSON.stringify({ name }),
   })
   if (res.ok) {
-    list.append(renderHabit(await res.json()))
+    showHabit(await res.json())
     form.reset()
   }
 })
 
 loadHabits()
-setInterval(loadHabits, 60 * 1000)
+setInterval(loadHabits, 30 * 1000)
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) loadHabits()
 })
+window.addEventListener('focus', loadHabits)
