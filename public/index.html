@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Навици</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 28rem; margin: 2rem auto; padding: 0 1rem; }
+    form { display: flex; gap: 0.5rem; }
+    form input { flex: 1; }
+    input, button { font: inherit; padding: 0.4rem 0.6rem; }
+    ul { list-style: none; padding: 0; }
+    li { border-bottom: 1px solid #8884; }
+    label { display: flex; gap: 0.6rem; align-items: center; padding: 0.6rem 0; cursor: pointer; }
+    #habits:empty::before { content: 'Още нямаш навици. Добави първия!'; color: GrayText; }
+  </style>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <h1>Навици за днес</h1>
+  <form id="new-habit">
+    <input name="name" placeholder="Нов навик, напр. Чета 20 минути" required autocomplete="off">
+    <button>Добави</button>
+  </form>
+  <ul id="habits"></ul>
+</body>
+</html>
