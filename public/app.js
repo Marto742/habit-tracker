@@ -1,5 +1,6 @@
 const form = document.querySelector('#new-habit')
 const list = document.querySelector('#habits')
+let shownDate
 
 function renderHabit(habit) {
   const checkbox = document.createElement('input')
@@ -24,9 +25,13 @@ function renderHabit(habit) {
   return item
 }
 
+// The list shows one day's checks. Re-render only when the server's date has changed,
+// so a page left open past midnight doesn't keep showing yesterday's checks as today's.
 async function loadHabits() {
   const res = await fetch('/api/habits')
-  const habits = await res.json()
+  const { date, habits } = await res.json()
+  if (date === shownDate) return
+  shownDate = date
   list.replaceChildren(...habits.map(renderHabit))
 }
 
@@ -47,3 +52,7 @@ form.addEventListener('submit', async (event) => {
 })
 
 loadHabits()
+setInterval(loadHabits, 60 * 1000)
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) loadHabits()
+})

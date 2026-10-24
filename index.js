@@ -13,13 +13,14 @@ app.use(express.json())
 app.use(express.static(path.join(__dirname, 'public')))
 
 app.get('/api/habits', (req, res) => {
+  const date = today()
   const habits = db.prepare(`
     SELECT habits.id, habits.name, checkins.date IS NOT NULL AS done
     FROM habits
     LEFT JOIN checkins ON checkins.habit_id = habits.id AND checkins.date = ?
     ORDER BY habits.id
-  `).all(today())
-  res.json(habits.map(habit => ({ ...habit, done: Boolean(habit.done) })))
+  `).all(date)
+  res.json({ date, habits: habits.map(habit => ({ ...habit, done: Boolean(habit.done) })) })
 })
 
 app.post('/api/habits', (req, res) => {
