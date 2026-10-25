@@ -1,6 +1,6 @@
 const { describe, test } = require('node:test')
 const assert = require('node:assert/strict')
-const { todayInBulgaria, previousDay, lastDays, streak } = require('./days')
+const { todayInBulgaria, previousDay, lastDays, streak } = require('../days')
 
 describe('streak', () => {
   test('no check-ins', () => {
