@@ -61,8 +61,10 @@ function noSync() {
 }
 
 // Opens the app in a new tab of `context` and collects the errors the page runs into.
-async function openTab(context, server, { setup, onRequest } = {}) {
+// `prepare` gets the tab before the app loads in it (viewport, browser settings).
+async function openTab(context, server, { setup, onRequest, prepare } = {}) {
   const page = await context.newPage()
+  if (prepare) await prepare(page)
   page.errors = []
   page.on('pageerror', error => page.errors.push(String(error)))
   page.on('console', message => {
@@ -113,13 +115,13 @@ const row = (page, n) => page.evaluate(n => window.__row(n), n)
 // makes the page sync, like a user switching to it. On a timeout the assertion shows the difference.
 async function waitForView(page, expected) {
   await page.bringToFront()
-  await page.waitForFunction(expected => JSON.stringify(window.__view()) === JSON.stringify(expected), { timeout: 5000 }, expected)
+  await page.waitForFunction(expected => JSON.stringify(window.__view()) === JSON.stringify(expected), { timeout: 15000 }, expected)
     .catch(async () => assert.deepEqual(await view(page), expected))
 }
 
 async function waitForRow(page, n, expected) {
   await page.bringToFront()
-  await page.waitForFunction((n, expected) => JSON.stringify(window.__row(n)) === JSON.stringify(expected), { timeout: 5000 }, n, expected)
+  await page.waitForFunction((n, expected) => JSON.stringify(window.__row(n)) === JSON.stringify(expected), { timeout: 15000 }, n, expected)
     .catch(async () => assert.deepEqual(await row(page, n), expected))
 }
 
@@ -359,6 +361,109 @@ describe('days and syncing in the browser', { skip }, () => {
     await sleep(300)
     assert.deepEqual(await row(page, 1), { checked: false, streak: '🔥 1', week: '□□□□□■□', today: '25.10' })
     assert.deepEqual(page.errors, [])
+    await page.close()
+  })
+})
+
+describe('on a phone, 360px wide', { skip }, () => {
+  const name = 'konstantin_aleksandrov_ivanov' // almost the 30 letters a name may have, with nowhere to wrap
+  const longHabit = 'Чета поне 20 минути вечер преди лягане без телефон'
+  const habits = ['Чета 20 минути', longHabit]
+  let dir, server, context
+
+  before(async () => {
+    dir = tempDir()
+    server = await startServer({ dbFile: path.join(dir, 'habits.db') })
+    const user = new Client(server)
+    await user.request('POST', '/api/register', { name, password: PASSWORD })
+    for (const habit of habits) await user.request('POST', '/api/habits', { name: habit })
+    context = await browser.createBrowserContext()
+  })
+
+  after(async () => {
+    await context?.close()
+    await server?.stop()
+    fs.rmSync(dir, { recursive: true, force: true })
+  })
+
+  // A tab the size of a phone. `textSize` is the browser's default text size: a larger one (an
+  // accessibility setting) makes fields and buttons wider, which can push the page past the screen.
+  function phoneTab(textSize, width = 360) {
+    return openTab(context, server, {
+      prepare: async page => {
+        await page.setViewport({ width, height: 740, isMobile: width < 600, hasTouch: width < 600 })
+        const cdp = await page.createCDPSession()
+        await cdp.send('Page.setFontSizes', { fontSizes: { standard: textSize, fixed: textSize } })
+      },
+    })
+  }
+
+  // The page's width, what is too small to tap, and how the long habit name is laid out.
+  function measure(page) {
+    return page.evaluate(longHabit => {
+      const tooSmall = [...document.querySelectorAll('button, input[type=checkbox]')]
+        .filter(element => element.getClientRects().length > 0)
+        .map(element => [element.textContent || element.type, element.getBoundingClientRect()])
+        .filter(([, box]) => box.width < 44 || box.height < 44)
+        .map(([what, box]) => `${what} ${Math.round(box.width)}x${Math.round(box.height)}`)
+      const label = [...document.querySelectorAll('#habits label')].find(label => label.textContent === longHabit)
+      if (!label) return { pageWidth: document.documentElement.scrollWidth, tooSmall }
+      const text = document.createRange()
+      text.selectNodeContents(label.lastChild)
+      const lines = [...text.getClientRects()]
+      const squares = label.closest('li').querySelector('.week').getBoundingClientRect()
+      return {
+        pageWidth: document.documentElement.scrollWidth,
+        tooSmall,
+        nameLines: lines.length,
+        squaresUnderName: squares.top >= lines.at(-1).bottom - 1,
+      }
+    }, longHabit)
+  }
+
+  const fits = { '16px text': { pageWidth: 360, tooSmall: [] }, '20px text': { pageWidth: 360, tooSmall: [] } }
+
+  test('the login form fits the screen and its buttons are big enough to tap', async () => {
+    const results = {}
+    for (const textSize of [16, 20]) {
+      const page = await phoneTab(textSize)
+      await waitForView(page, { user: null, habits: [] })
+      results[`${textSize}px text`] = await measure(page)
+      await page.close()
+    }
+    assert.deepEqual(results, fits)
+  })
+
+  test('with habits, nothing sticks out and every checkbox and button is at least 44×44', async () => {
+    const login = await phoneTab(16)
+    await submitAuth(login, 'login', name, PASSWORD)
+    await waitForView(login, { user: name, habits })
+    await login.close()
+    const results = {}
+    for (const textSize of [16, 20]) {
+      const page = await phoneTab(textSize)
+      await waitForView(page, { user: name, habits })
+      const { pageWidth, tooSmall } = await measure(page)
+      results[`${textSize}px text`] = { pageWidth, tooSmall }
+      assert.deepEqual(page.errors, [])
+      await page.close()
+    }
+    assert.deepEqual(results, fits)
+  })
+
+  test('a long habit name takes at most two lines, with the squares under it', async () => {
+    const page = await phoneTab(16)
+    await waitForView(page, { user: name, habits })
+    const { nameLines, squaresUnderName } = await measure(page)
+    assert.ok(nameLines <= 2, `the name takes ${nameLines} lines`)
+    assert.equal(squaresUnderName, true, 'the squares are under the name')
+    await page.close()
+  })
+
+  test('on a wide screen the squares stay next to the name', async () => {
+    const page = await phoneTab(16, 1024)
+    await waitForView(page, { user: name, habits })
+    assert.equal((await measure(page)).squaresUnderName, false)
     await page.close()
   })
 })

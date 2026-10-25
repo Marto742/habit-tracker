@@ -6,20 +6,27 @@
   <title>Навици</title>
   <style>
     :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    *, *::before, *::after { box-sizing: border-box; }
     [hidden] { display: none !important; }
-    body { max-width: 32rem; margin: 2rem auto; padding: 0 1rem; }
+    body { max-width: 34rem; margin: 2rem auto; padding: 0 1rem; }
     input, button { font: inherit; padding: 0.4rem 0.6rem; }
+    /* Big enough to tap on a phone: at least 44x44px. */
+    button, input:not([type=checkbox]) { min-height: 2.75rem; }
     #auth-form { display: grid; gap: 0.5rem; max-width: 20rem; }
-    #auth-form .buttons { display: flex; gap: 0.5rem; }
+    #auth-form .buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; }
     #auth-form .buttons button { flex: 1; }
     #auth-error { margin: 0; min-height: 1.4em; color: light-dark(#c62828, #ff8a80); }
     .user { display: flex; align-items: center; gap: 0.4rem; }
+    .user span { overflow-wrap: anywhere; }
     .user button { margin-left: auto; }
     #new-habit { display: flex; gap: 0.5rem; }
-    #new-habit input { flex: 1; }
+    /* min-width: 0 lets the field get narrower than the ~20 characters a text field is wide by
+       default; without it "Добави" is pushed off a narrow screen. */
+    #new-habit input { flex: 1; min-width: 0; }
     ul { list-style: none; padding: 0; }
     li { display: flex; align-items: center; gap: 0.75rem; border-bottom: 1px solid #8884; }
     label { flex: 1; min-width: 0; overflow-wrap: anywhere; display: flex; gap: 0.6rem; align-items: center; padding: 0.6rem 0; cursor: pointer; }
+    #habits input[type=checkbox] { flex-shrink: 0; width: 2.75rem; height: 2.75rem; margin: 0; accent-color: #2e9d5b; }
     .stats { flex-shrink: 0; display: flex; align-items: center; gap: 0.75rem; }
     .week { display: flex; gap: 3px; }
     .day { width: 0.8rem; height: 0.8rem; border-radius: 3px; background: #8883; }
@@ -28,6 +35,12 @@
     .streak { min-width: 2.8rem; text-align: right; font-variant-numeric: tabular-nums; }
     .streak.zero { opacity: 0.4; }
     #habits:empty::before { content: 'Още нямаш навици. Добави първия!'; color: GrayText; }
+    /* On a phone the name doesn't fit next to the squares: they get a line of their own under it,
+       lined up with the name (checkbox width + the label's gap), with the streak on the right. */
+    @media (max-width: 30rem) {
+      li { flex-wrap: wrap; row-gap: 0; }
+      .stats { flex-basis: 100%; justify-content: space-between; padding: 0 0 0.6rem calc(2.75rem + 0.6rem); }
+    }
   </style>
   <script src="app.js" defer></script>
 </head>
