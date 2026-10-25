@@ -5,30 +5,39 @@ const userName = document.querySelector('#user-name')
 const form = document.querySelector('#new-habit')
 const list = document.querySelector('#habits')
 const rows = new Map()
+let shownUser = null
 // Bumped by everything this page changes on its own: a click, logging in, logging out.
 let changes = 0
 
 // Also clears the habits, so whoever logs in next in this tab doesn't see them.
 function showLogin() {
   changes++
+  shownUser = null
   rows.clear()
   list.replaceChildren()
   account.hidden = true
   authForm.hidden = false
 }
 
-function showHabits(user) {
-  changes++
-  userName.textContent = user.name
+// Shows the habits view of `name`. If the page showed another account (another tab logged in
+// as someone else), its habits are cleared first, so the two never mix.
+function showAccount(name) {
+  if (name !== shownUser) {
+    changes++
+    shownUser = name
+    userName.textContent = name
+    rows.clear()
+    list.replaceChildren()
+  }
   authForm.hidden = true
   account.hidden = false
-  loadHabits()
 }
 
-// fetch, but if the session is gone (logged out in another tab, or expired), back to the login form.
+// fetch for changing habits. 401 means logged out, 404 that the habit isn't this account's:
+// either way another tab may have logged out or switched accounts, so sync to find out.
 async function api(path, options) {
   const res = await fetch(path, options)
-  if (res.status === 401) showLogin()
+  if (res.status === 401 || res.status === 404) sync()
   return res
 }
 
@@ -94,17 +103,18 @@ function renderStats(stats, habit) {
   stats.replaceChildren(week, streak)
 }
 
-// Brings the page in line with the server: checks made on another device or in another tab,
-// and the new day after midnight.
-async function loadHabits() {
-  if (account.hidden) return
+// Brings the page in line with the server: who is logged in (another tab may have logged out,
+// in, or as someone else), checks made on another device, and the new day after midnight.
+async function sync() {
   const changesBefore = changes
-  const res = await api('/api/habits').catch(() => null)
-  if (!res?.ok) return
-  const { habits } = await res.json()
-  // If this page changed something meanwhile, the answer may be out of date. Skip it; the next load catches up.
+  const res = await fetch('/api/habits').catch(() => null)
+  const data = res?.ok ? await res.json() : null
+  // If this page changed something meanwhile, the answer may be out of date. Skip it; the next sync catches up.
   if (changes !== changesBefore || list.querySelector('input:disabled')) return
-  for (const habit of habits) showHabit(habit)
+  if (res?.status === 401) return showLogin()
+  if (!data) return
+  showAccount(data.user)
+  for (const habit of data.habits) showHabit(habit)
 }
 
 authForm.addEventListener('submit', async (event) => {
@@ -123,7 +133,8 @@ authForm.addEventListener('submit', async (event) => {
   }
   authForm.reset()
   authError.textContent = ''
-  showHabits(body)
+  showAccount(body.name)
+  sync()
 })
 
 document.querySelector('#logout').addEventListener('click', async () => {
@@ -147,15 +158,11 @@ form.addEventListener('submit', async (event) => {
   }
 })
 
-async function start() {
-  const res = await fetch('/api/me').catch(() => null)
-  if (res?.ok) showHabits(await res.json())
-  else showLogin()
-}
-
-start()
-setInterval(loadHabits, 30 * 1000)
+sync()
+setInterval(() => {
+  if (!account.hidden) sync()
+}, 30 * 1000)
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) loadHabits()
+  if (!document.hidden) sync()
 })
-window.addEventListener('focus', loadHabits)
+window.addEventListener('focus', sync)

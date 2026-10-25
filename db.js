@@ -2,7 +2,8 @@ const fs = require('node:fs')
 const path = require('node:path')
 const { DatabaseSync } = require('node:sqlite')
 
-const file = path.join(__dirname, 'habits.db')
+// DB_FILE lets the tests use a database of their own.
+const file = process.env.DB_FILE || path.join(__dirname, 'habits.db')
 let db = new DatabaseSync(file)
 
 // A database from before accounts (stages 2-3) has habits without an owner, and
@@ -12,7 +13,7 @@ const { user_version: version } = db.prepare('PRAGMA user_version').get()
 const hasOldTables = db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'habits'").get()
 if (version === 0 && hasOldTables) {
   db.close()
-  const backup = path.join(__dirname, 'habits-before-accounts.db')
+  const backup = path.join(path.dirname(file), 'habits-before-accounts.db')
   fs.renameSync(file, backup)
   db = new DatabaseSync(file)
   console.log(`Found a database from before accounts: moved it to ${backup} and started a new one.`)

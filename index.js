@@ -5,7 +5,7 @@ const auth = require('./auth')
 const { todayInBulgaria, lastDays, streak } = require('./days')
 
 const app = express()
-const port = 3000
+const port = process.env.PORT || 3000
 
 app.use(express.json())
 app.use(express.static(path.join(__dirname, 'public')))
@@ -81,7 +81,12 @@ function describeHabit(habit, dates, today) {
 app.get('/api/habits', (req, res) => {
   const today = todayInBulgaria()
   const habits = db.prepare('SELECT id, name FROM habits WHERE user_id = ? ORDER BY id').all(req.user.id)
-  res.json({ date: today, habits: habits.map(habit => describeHabit(habit, checkinDates(habit.id), today)) })
+  // `user` says whose habits these are: another tab may have logged in as someone else since.
+  res.json({
+    user: req.user.name,
+    date: today,
+    habits: habits.map(habit => describeHabit(habit, checkinDates(habit.id), today)),
+  })
 })
 
 app.post('/api/habits', (req, res) => {
@@ -113,6 +118,7 @@ app.delete('/api/habits/:id/today', (req, res) => {
   res.json(describeHabit(habit, checkinDates(habit.id), today))
 })
 
-app.listen(port, () => {
-  console.log(`Habit tracker listening on http://localhost:${port}`)
+// With PORT=0 (the tests use it) the system picks a free port, so print the real one.
+const server = app.listen(port, () => {
+  console.log(`Habit tracker listening on http://localhost:${server.address().port}`)
 })
